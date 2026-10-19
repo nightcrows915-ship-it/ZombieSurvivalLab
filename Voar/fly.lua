@@ -1,24 +1,26 @@
 --[[
-    ⚔️ TITAN HUB - REMOTE FLY INTEGRATION ⚔️
+    ⚔️ TITAN HUB - ULTIMATE ZOMBIE SURVIVAL EDITION ⚔️
     - UI Library: Rayfield Interface Suite
-    - Features: Voo via loadstring direto do seu link + Kill Aura + Anti-AFK
+    - Integrado com seu Script de Voo via loadstring oficial
+    - Kill Aura Avançado (Equip + Disparo automático via GunKit Remote)
 ]]
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local LocalPlayer = Players.LocalPlayer
 
 -- 1. CRIAÇÃO DA JANELA
 local Window = Rayfield:CreateWindow({
-   Name = "⚔️ TITAN HUB | V38 REMOTE FLY",
+   Name = "⚔️ TITAN HUB | ZOMBIE SURVIVAL ULTIMATE",
    LoadingTitle = "Carregando Titan Hub...",
    LoadingSubtitle = "by Zyon",
    ConfigurationSaving = {
       Enabled = true,
       FolderName = "TitanHubConfig", 
-      FileName = "TitanRemoteFlyConfig"
+      FileName = "TitanSurvivalConfig"
    },
    Discord = {
       Enabled = false,
@@ -34,9 +36,9 @@ local TabMisc = Window:CreateTab("⚙️ Misc", 4483362458)
 
 -- VARIÁVEIS DE CONTROLE
 getgenv().KillAura = false
-getgenv().KillAuraRange = 25
+getgenv().KillAuraRange = 50
 
--- FUNÇÃO DE VOO VIA LOADSTRING DO SEU LINK
+-- CARREGAR O VOO DIRETAMENTE DO SEU LINK
 local flyEnv = nil
 TabMain:CreateToggle({
    Name = "Ativar Voo (Link Externo)",
@@ -47,7 +49,7 @@ TabMain:CreateToggle({
           pcall(function()
               flyEnv = loadstring(game:HttpGet("https://raw.githubusercontent.com/nightcrows915-ship-it/ZombieSurvivalLab/refs/heads/main/Voar/fly.lua"))()
           end)
-          Rayfield:Notify({Title = "Voo", Content = "Script de voo carregado via loadstring!", Duration = 2})
+          Rayfield:Notify({Title = "Voo Ativado", Content = "Script de voo carregado com sucesso!", Duration = 2})
       else
           pcall(function()
               if flyEnv and type(flyEnv) == "table" and flyEnv.Stop then
@@ -56,15 +58,17 @@ TabMain:CreateToggle({
                   LocalPlayer.Character.Humanoid.PlatformStand = false
               end
           end)
-          Rayfield:Notify({Title = "Voo", Content = "Voo desativado.", Duration = 2})
+          Rayfield:Notify({Title = "Voo Desativado", Content = "Modo de voo desligado.", Duration = 2})
       end
    end,
 })
 
--- LOOP DO KILL AURA & AUTO EQUIP
+-- LOOP DE KILL AURA (Compatível com GunKit & Mobs do Jogo)
 task.spawn(function()
+    local gunTriggerRemote = ReplicatedStorage:FindFirstChild("GunTrigger", true)
+    
     while true do
-        task.wait(0.2)
+        task.wait(0.15)
         if getgenv().KillAura then
             pcall(function()
                 local char = LocalPlayer.Character
@@ -72,7 +76,7 @@ task.spawn(function()
                 local root = char:FindFirstChild("HumanoidRootPart")
                 if not root then return end
 
-                -- Auto Equip Tool
+                -- 1. Garante que está com a arma equipada
                 local tool = char:FindFirstChildOfClass("Tool")
                 if not tool then
                     local backpackTool = LocalPlayer.Backpack:FindFirstChildOfClass("Tool")
@@ -82,18 +86,26 @@ task.spawn(function()
                     end
                 end
 
-                -- Atacar entidades próximas que se movem
+                -- 2. Varredura de alvos (Zumbis e Mobs no Workspace)
                 for _, v in pairs(Workspace:GetDescendants()) do
                     if v:IsA("Model") and v ~= char then
                         local mHum = v:FindFirstChild("Humanoid")
                         local mRoot = v:FindFirstChild("HumanoidRootPart") or v:FindFirstChild("Torso")
                         if mHum and mRoot and mHum.Health > 0 then
+                            -- Ignora outros jogadores, foca em inimigos/mobs
                             if not Players:GetPlayerFromCharacter(v) then
                                 local dist = (root.Position - mRoot.Position).Magnitude
                                 if dist <= getgenv().KillAuraRange then
+                                    -- Ativa a ferramenta na mão
                                     local activeTool = char:FindFirstChildOfClass("Tool")
                                     if activeTool then
                                         activeTool:Activate()
+                                    end
+                                    -- Dispara o remote do GunKit se disponível para dano instantâneo
+                                    if gunTriggerRemote then
+                                        pcall(function()
+                                            gunTriggerRemote:FireServer(mRoot.Position)
+                                        end)
                                     end
                                 end
                             end
@@ -106,10 +118,10 @@ task.spawn(function()
 end)
 
 -- SEÇÃO DE COMBATE
-local SectionAura = TabMain:CreateSection("Combate Automático")
+local SectionAura = TabMain:CreateSection("Kill Aura Automático")
 
 TabMain:CreateToggle({
-   Name = "Ativar Kill Aura (Auto Ataca Mobs)",
+   Name = "Ativar Kill Aura",
    CurrentValue = false,
    Flag = "ToggleKillAura", 
    Callback = function(Value)
@@ -120,10 +132,10 @@ TabMain:CreateToggle({
 
 TabMain:CreateSlider({
    Name = "Alcance do Kill Aura",
-   Range = {10, 100},
+   Range = {15, 150},
    Increment = 5,
    Suffix = " Studs",
-   CurrentValue = 25,
+   CurrentValue = 50,
    Flag = "SliderAuraRange", 
    Callback = function(Value)
       getgenv().KillAuraRange = Value
