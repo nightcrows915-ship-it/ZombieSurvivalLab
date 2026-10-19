@@ -1,85 +1,155 @@
--- Zombie Survival Lab
--- Interface prototype for a Roblox Studio experience you own.
--- Place this LocalScript in StarterPlayer > StarterPlayerScripts.
--- This is a UI-only prototype; it does not modify public games or attack other players/NPCs.
+--[[
+    ⚔️ TITAN HUB - REMOTE FLY INTEGRATION ⚔️
+    - UI Library: Rayfield Interface Suite
+    - Features: Voo via loadstring direto do seu link + Kill Aura + Anti-AFK
+]]
+
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Players = game:GetService("Players")
-local player = Players.LocalPlayer
-local playerGui = player:WaitForChild("PlayerGui")
+local Workspace = game:GetService("Workspace")
+local LocalPlayer = Players.LocalPlayer
 
-local gui = Instance.new("ScreenGui")
-gui.Name = "ZombieSurvivalLab"
-gui.ResetOnSpawn = false
-gui.Parent = playerGui
+-- 1. CRIAÇÃO DA JANELA
+local Window = Rayfield:CreateWindow({
+   Name = "⚔️ TITAN HUB | V38 REMOTE FLY",
+   LoadingTitle = "Carregando Titan Hub...",
+   LoadingSubtitle = "by Zyon",
+   ConfigurationSaving = {
+      Enabled = true,
+      FolderName = "TitanHubConfig", 
+      FileName = "TitanRemoteFlyConfig"
+   },
+   Discord = {
+      Enabled = false,
+      Invite = "noinvitelink", 
+      RememberJoins = true 
+   },
+   KeySystem = false,
+})
 
-local panel = Instance.new("Frame")
-panel.Name = "Panel"
-panel.Size = UDim2.fromOffset(260, 250)
-panel.Position = UDim2.new(0, 18, 0.5, -125)
-panel.BackgroundColor3 = Color3.fromRGB(25, 29, 36)
-panel.BorderSizePixel = 0
-panel.Parent = gui
+-- 2. CRIAÇÃO DAS ABAS
+local TabMain = Window:CreateTab("🚀 Voo & Combate", 4483362458)
+local TabMisc = Window:CreateTab("⚙️ Misc", 4483362458)
 
-local corner = Instance.new("UICorner")
-corner.CornerRadius = UDim.new(0, 10)
-corner.Parent = panel
+-- VARIÁVEIS DE CONTROLE
+getgenv().KillAura = false
+getgenv().KillAuraRange = 25
 
-local title = Instance.new("TextLabel")
-title.Size = UDim2.new(1, -20, 0, 38)
-title.Position = UDim2.fromOffset(10, 8)
-title.BackgroundTransparency = 1
-title.Text = "ZOMBIE SURVIVAL LAB"
-title.TextColor3 = Color3.fromRGB(120, 220, 150)
-title.Font = Enum.Font.GothamBold
-title.TextSize = 15
-title.Parent = panel
+-- FUNÇÃO DE VOO VIA LOADSTRING DO SEU LINK
+local flyEnv = nil
+TabMain:CreateToggle({
+   Name = "Ativar Voo (Link Externo)",
+   CurrentValue = false,
+   Flag = "ToggleFlyRemote", 
+   Callback = function(Value)
+      if Value then
+          pcall(function()
+              flyEnv = loadstring(game:HttpGet("https://raw.githubusercontent.com/nightcrows915-ship-it/ZombieSurvivalLab/refs/heads/main/Voar/fly.lua"))()
+          end)
+          Rayfield:Notify({Title = "Voo", Content = "Script de voo carregado via loadstring!", Duration = 2})
+      else
+          pcall(function()
+              if flyEnv and type(flyEnv) == "table" and flyEnv.Stop then
+                  flyEnv.Stop()
+              elseif LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+                  LocalPlayer.Character.Humanoid.PlatformStand = false
+              end
+          end)
+          Rayfield:Notify({Title = "Voo", Content = "Voo desativado.", Duration = 2})
+      end
+   end,
+})
 
-local status = Instance.new("TextLabel")
-status.Name = "Status"
-status.Size = UDim2.new(1, -20, 0, 32)
-status.Position = UDim2.fromOffset(10, 48)
-status.BackgroundColor3 = Color3.fromRGB(38, 44, 53)
-status.Text = "Modo de teste: pronto"
-status.TextColor3 = Color3.fromRGB(235, 235, 235)
-status.Font = Enum.Font.Gotham
-status.TextSize = 12
-status.Parent = panel
+-- LOOP DO KILL AURA & AUTO EQUIP
+task.spawn(function()
+    while true do
+        task.wait(0.2)
+        if getgenv().KillAura then
+            pcall(function()
+                local char = LocalPlayer.Character
+                if not char then return end
+                local root = char:FindFirstChild("HumanoidRootPart")
+                if not root then return end
 
-local statusCorner = Instance.new("UICorner")
-statusCorner.CornerRadius = UDim.new(0, 6)
-statusCorner.Parent = status
+                -- Auto Equip Tool
+                local tool = char:FindFirstChildOfClass("Tool")
+                if not tool then
+                    local backpackTool = LocalPlayer.Backpack:FindFirstChildOfClass("Tool")
+                    if backpackTool then
+                        local hum = char:FindFirstChild("Humanoid")
+                        if hum then hum:EquipTool(backpackTool) end
+                    end
+                end
 
-local function makeButton(label, y, callback)
-    local button = Instance.new("TextButton")
-    button.Size = UDim2.new(1, -20, 0, 34)
-    button.Position = UDim2.fromOffset(10, y)
-    button.BackgroundColor3 = Color3.fromRGB(55, 65, 78)
-    button.TextColor3 = Color3.fromRGB(255, 255, 255)
-    button.Text = label
-    button.Font = Enum.Font.GothamMedium
-    button.TextSize = 13
-    button.AutoButtonColor = true
-    button.Parent = panel
-
-    local buttonCorner = Instance.new("UICorner")
-    buttonCorner.CornerRadius = UDim.new(0, 6)
-    buttonCorner.Parent = button
-    button.Activated:Connect(callback)
-    return button
-end
-
-makeButton("Voo: protótipo", 90, function()
-    status.Text = "Voo: implementar no jogo de teste"
+                -- Atacar entidades próximas que se movem
+                for _, v in pairs(Workspace:GetDescendants()) do
+                    if v:IsA("Model") and v ~= char then
+                        local mHum = v:FindFirstChild("Humanoid")
+                        local mRoot = v:FindFirstChild("HumanoidRootPart") or v:FindFirstChild("Torso")
+                        if mHum and mRoot and mHum.Health > 0 then
+                            if not Players:GetPlayerFromCharacter(v) then
+                                local dist = (root.Position - mRoot.Position).Magnitude
+                                if dist <= getgenv().KillAuraRange then
+                                    local activeTool = char:FindFirstChildOfClass("Tool")
+                                    if activeTool then
+                                        activeTool:Activate()
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+            end)
+        end
+    end
 end)
 
-makeButton("Colisão: protótipo", 132, function()
-    status.Text = "Colisão: implementar no mapa de teste"
-end)
+-- SEÇÃO DE COMBATE
+local SectionAura = TabMain:CreateSection("Combate Automático")
 
-makeButton("Combate NPC: protótipo", 174, function()
-    status.Text = "Combate: usar NPCs próprios de teste"
-end)
+TabMain:CreateToggle({
+   Name = "Ativar Kill Aura (Auto Ataca Mobs)",
+   CurrentValue = false,
+   Flag = "ToggleKillAura", 
+   Callback = function(Value)
+      getgenv().KillAura = Value
+      Rayfield:Notify({Title = "Kill Aura", Content = Value and "Ligado!" or "Desligado!", Duration = 2})
+   end,
+})
 
-makeButton("Fechar painel", 216, function()
-    gui:Destroy()
-end)
+TabMain:CreateSlider({
+   Name = "Alcance do Kill Aura",
+   Range = {10, 100},
+   Increment = 5,
+   Suffix = " Studs",
+   CurrentValue = 25,
+   Flag = "SliderAuraRange", 
+   Callback = function(Value)
+      getgenv().KillAuraRange = Value
+   end,
+})
+
+-- ABA MISC
+TabMisc:CreateButton({
+   Name = "Ativar Anti-AFK",
+   Callback = function()
+        local vu = game:GetService("VirtualUser")
+        LocalPlayer.Idled:Connect(function()
+           vu:Button2Down(Vector2.new(0,0), Workspace.CurrentCamera.CFrame)
+           task.wait(1)
+           vu:Button2Up(Vector2.new(0,0), Workspace.CurrentCamera.CFrame)
+        end)
+        Rayfield:Notify({Title = "Sistema", Content = "Anti-AFK Ativado!", Duration = 2})
+   end,
+})
+
+TabMisc:CreateButton({
+   Name = "Destruir Hub Completamente",
+   Callback = function()
+        getgenv().KillAura = false
+        Rayfield:Destroy()
+   end,
+})
+
+Rayfield:LoadConfiguration()
