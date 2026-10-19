@@ -1,7 +1,7 @@
 --[[
-    ⚔️ SWORD ONLINE V30 - FLIGHT HUB ADDON ⚔️
-    - Visual: Glass UI (Matching V30 Theme)
-    - Features: Toggle Flight, Speed Control (+ / -), BodyVelocity/BodyGyro Physics
+    ⚔️ SWORD ONLINE V30 - FLIGHT HUB (DELTA COMPATIBLE) ⚔️
+    - Visual: Glass UI
+    - Correção: Loop de Física via RunService.RenderStepped para funcionamento total no Delta
 ]]
 
 local Players = game:GetService("Players")
@@ -37,7 +37,7 @@ local MainFrame = Instance.new("Frame", ScreenGui)
 MainFrame.BackgroundColor3 = Theme.Background
 MainFrame.BackgroundTransparency = Theme.Transparency
 MainFrame.Position = UDim2.new(0.5, -200, 0.3, 0)
-MainFrame.Size = Instance.new("UDim2", nil) and UDim2.new(0, 400, 0, 240)
+MainFrame.Size = UDim2.new(0, 400, 0, 240)
 MainFrame.Active = true; MainFrame.Draggable = true
 AddCorner(MainFrame, 16)
 AddStroke(MainFrame, Color3.fromRGB(60, 60, 60), 1)
@@ -60,11 +60,11 @@ local PList = Instance.new("UIListLayout", Content)
 PList.Padding = UDim.new(0, 10)
 PList.SortOrder = Enum.SortOrder.LayoutOrder
 
--- Variáveis de Voo
+-- Configurações de Voo
 getgenv().Flying = false
 getgenv().FlySpeed = 50
 
-local bg, bv
+local flightConnection
 local function StartFly()
     local char = LocalPlayer.Character
     if not char then return end
@@ -73,49 +73,41 @@ local function StartFly()
     if not root or not hum then return end
 
     hum.PlatformStand = true
-    
-    bg = Instance.new("BodyGyro", root)
-    bg.P = 9e4
-    bg.maxTorque = Vector3.new(9e4, 9e4, 9e4)
-    bg.cframe = root.CFrame
 
-    bv = Instance.new("BodyVelocity", root)
-    bv.velocity = Vector3.new(0, 0, 0)
-    bv.maxForce = Vector3.new(9e4, 9e4, 9e4)
+    if flightConnection then flightConnection:Disconnect() end
 
-    task.spawn(function()
-        while getgenv().Flying and char and char.Parent do
-            local cam = Workspace.CurrentCamera
-            local moveDir = hum.MoveDirection
-            local vel = Vector3.zero
-            
-            if moveDir.Magnitude > 0 then
-                vel = cam.CFrame.Vector3 * Vector3.new(1,0,1).Unit * moveDir.Magnitude * getgenv().FlySpeed
-                -- Mantém direcional da camera
-                vel = (cam.CFrame.LookVector * moveDir.Z + cam.CFrame.RightVector * moveDir.X) * getgenv().FlySpeed
-            end
-            
-            -- Adiciona controle vertical básico por teclas se necessário ou flutua na altura atual
-            bv.velocity = vel + Vector3.new(0, 0.1, 0)
-            bg.cframe = cam.CFrame
-            task.wait()
+    flightConnection = RunService.RenderStepped:Connect(function()
+        if not getgenv().Flying or not char or not char.Parent or not root or not hum then
+            if flightConnection then flightConnection:Disconnect() end
+            return
         end
-        
-        if hum then hum.PlatformStand = false end
-        if bg then bg:Destroy() end
-        if bv then bv:Destroy() end
+
+        hum.PlatformStand = true
+        local cam = Workspace.CurrentCamera
+        local moveDir = hum.MoveDirection
+        local velocity = Vector3.zero
+
+        if moveDir.Magnitude > 0 then
+            velocity = (cam.CFrame.LookVector * moveDir.Z + cam.CFrame.RightVector * moveDir.X).Unit * getgenv().FlySpeed
+        else
+            velocity = Vector3.new(0, 0, 0)
+        end
+
+        root.Velocity = velocity + Vector3.new(0, 1, 0) -- Anula gravidade de forma estável no Delta
+        root.CFrame = CFrame.new(root.Position, root.Position + cam.CFrame.LookVector)
     end)
 end
 
 local function StopFly()
     getgenv().Flying = false
+    if flightConnection then flightConnection:Disconnect() end
     local char = LocalPlayer.Character
     if char then
         local hum = char:FindFirstChild("Humanoid")
+        local root = char:FindFirstChild("HumanoidRootPart")
         if hum then hum.PlatformStand = false end
+        if root then root.Velocity = Vector3.zero end
     end
-    if bg then bg:Destroy() end
-    if bv then bv:Destroy() end
 end
 
 -- Componentes da UI (Toggle Voo)
@@ -209,4 +201,4 @@ PlusBtn.MouseButton1Click:Connect(function()
     SpeedLabel.Text = "Velocidade do Voo: " .. getgenv().FlySpeed
 end)
 
-game.StarterGui:SetCore("SendNotification", {Title="SWORD ONLINE"; Text="Flight Hub Carregado!"; Duration=3;})
+game.StarterGui:SetCore("SendNotification", {Title="SWORD ONLINE"; Text="Flight Hub (Delta) Carregado!"; Duration=3;})
